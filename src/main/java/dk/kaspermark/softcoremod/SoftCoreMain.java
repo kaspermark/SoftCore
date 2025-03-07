@@ -33,23 +33,13 @@ public class SoftCoreMain {
     @SubscribeEvent
     public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
         ServerPlayer player = (ServerPlayer) event.getEntity();
-        UUID playerId = player.getUUID();
-        
-        if (deadPlayers.containsKey(playerId)) {
-            int ticksLeft = deadPlayers.get(playerId);
-
-            if (ticksLeft <= 0) {
-                respawnPlayer(player);
-                deadPlayers.remove(playerId);
-            }
-        }
         
         if (!player.getPersistentData().getBoolean("hasJoinedBefore")) {
             player.getPersistentData().putBoolean("hasJoinedBefore", true);
             player.sendSystemMessage(net.minecraft.network.chat.Component.literal("Velkommen til serveren! Lorem ipsum dolor sit amet..."));
         }
         
-        if (player.gameMode.getGameModeForPlayer() == GameType.SPECTATOR && !deadPlayers.containsKey(playerId)) {
+        if (player.gameMode.getGameModeForPlayer() == GameType.SPECTATOR && !deadPlayers.containsKey(player.getUUID())) {
             respawnPlayer(player);
         }
     }
@@ -57,6 +47,7 @@ public class SoftCoreMain {
     @SubscribeEvent
     public void onPlayerDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+        	player.drop(true);
             player.setGameMode(GameType.SPECTATOR);
             deadPlayers.put(player.getUUID(), SPECTATOR_TIME);
         }
