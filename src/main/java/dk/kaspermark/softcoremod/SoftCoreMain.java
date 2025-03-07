@@ -14,16 +14,19 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import org.slf4j.Logger;
-
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import java.util.List;
+import java.util.Random;
 import java.util.HashMap;
 import java.util.UUID;
+
 
 @Mod(SoftCoreMain.MODID)
 public class SoftCoreMain {
     public static final String MODID = "softcore";
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    private static final int SPECTATOR_TIME = 10 * 20; // 10 sekunder i ticks (20 ticks = 1 sekund)
+    private static final int SPECTATOR_TIME = 20 * 20; // 10 sekunder i ticks (20 ticks = 1 sekund)
     private final HashMap<UUID, Integer> deadPlayers = new HashMap<>();
 
     public SoftCoreMain() {
@@ -39,20 +42,52 @@ public class SoftCoreMain {
             player.sendSystemMessage(net.minecraft.network.chat.Component.literal("Velkommen til serveren! Lorem ipsum dolor sit amet..."));
         }
         
-        if (player.gameMode.getGameModeForPlayer() == GameType.SPECTATOR && !deadPlayers.containsKey(player.getUUID())) {
+        if ((player.gameMode.getGameModeForPlayer() == GameType.SPECTATOR || player.gameMode.getGameModeForPlayer() == GameType.ADVENTURE) && !deadPlayers.containsKey(player.getUUID())) {
             respawnPlayer(player);
         }
     }
 
     @SubscribeEvent
     public void onPlayerDeath(LivingDeathEvent event) {
+    	MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (event.getEntity() instanceof ServerPlayer player) {
         	player.drop(true);
-            player.setGameMode(GameType.SPECTATOR);
             deadPlayers.put(player.getUUID(), SPECTATOR_TIME);
+            if (server.getPlayerList().getPlayers().size() == 1)
+            {            	
+                player.setGameMode(GameType.ADVENTURE);
+            }else
+            {
+            	player.setGameMode(GameType.SPECTATOR);
+            	ServerPlayer target = findRandomAlivePlayer(server, player);
+                if (target != null) {
+                    player.setCamera(target);
+                    player.setInvulnerable(true);
+                    player.setNoGravity(true);
+                }
+            }
         }
     }
+    
+    private ServerPlayer findRandomAlivePlayer(MinecraftServer server, ServerPlayer deadPlayer) {
+        List<ServerPlayer> alivePlayers = server.getPlayerList().getPlayers().stream()
+            .filter(p -> !p.isSpectator() && !p.getUUID().equals(deadPlayer.getUUID()))
+            .toList();
 
+        if (!alivePlayers.isEmpty()) {
+            return alivePlayers.get(new Random().nextInt(alivePlayers.size()));
+        }
+        deadPlayer.setGameMode(GameType.ADVENTURE);
+        return null; 
+    }
+
+    @SubscribeEvent
+    public void onPlayerDamage(LivingHurtEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player && player.gameMode.getGameModeForPlayer() == GameType.ADVENTURE) {
+            event.setCanceled(true);
+        }
+    }
+    
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
@@ -92,6 +127,10 @@ public class SoftCoreMain {
             respawnPos = world.getSharedSpawnPos();
         }
 
+        player.setHealth(player.getMaxHealth());
+        player.getFoodData().setFoodLevel(20); 
+        player.getFoodData().setSaturation(5.0f);
+        
         // Sæt spilleren tilbage til survival mode og teleportér til spawn
         player.setGameMode(GameType.SURVIVAL);
         player.teleportTo(respawnPos.getX() + 0.5, respawnPos.getY(), respawnPos.getZ() + 0.5);
