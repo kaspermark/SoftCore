@@ -35,7 +35,8 @@ public class SoftCoreMain {
 
     @SubscribeEvent
     public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
-        ServerPlayer player = (ServerPlayer) event.getEntity();
+    	MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+    	ServerPlayer player = (ServerPlayer) event.getEntity();
         
         if (!player.getPersistentData().getBoolean("hasJoinedBefore")) {
             player.getPersistentData().putBoolean("hasJoinedBefore", true);
@@ -59,15 +60,22 @@ public class SoftCoreMain {
             }else
             {
             	player.setGameMode(GameType.SPECTATOR);
-            	ServerPlayer target = findRandomAlivePlayer(server, player);
-                if (target != null) {
-                    player.setCamera(target);
-                    player.setInvulnerable(true);
-                    player.setNoGravity(true);
-                }
             }
         }
     }
+    
+    @SubscribeEvent
+    public void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
+    	MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (event.getEntity() instanceof ServerPlayer player && player.gameMode.getGameModeForPlayer() == GameType.SPECTATOR) {
+        	ServerPlayer target = findRandomAlivePlayer(server, player);
+            if (target != null) {
+                player.setCamera(target);
+                player.setInvulnerable(true);
+                player.setNoGravity(true);
+            }
+        }
+    }    
     
     private ServerPlayer findRandomAlivePlayer(MinecraftServer server, ServerPlayer deadPlayer) {
         List<ServerPlayer> alivePlayers = server.getPlayerList().getPlayers().stream()
